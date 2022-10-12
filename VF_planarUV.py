@@ -1,7 +1,7 @@
 bl_info = {
 	"name": "VF Planar UV",
 	"author": "John Einselen - Vectorform LLC",
-	"version": (0, 1),
+	"version": (0, 2),
 	"blender": (2, 80, 0),
 	"location": "Scene > VF Tools > Planar UV",
 	"description": "Numerical planar projection of 3D meshes into UV space",
@@ -32,6 +32,7 @@ class vf_planar_uv(bpy.types.Operator):
 			return {'CANCELLED'}
 
 		# Set up local variables
+		align = float(bpy.context.scene.vf_planar_uv_settings.projection_align)
 		axis = bpy.context.scene.vf_planar_uv_settings.projection_axis
 		centre = bpy.context.scene.vf_planar_uv_settings.projection_centre
 		size = bpy.context.scene.vf_planar_uv_settings.projection_size
@@ -52,10 +53,9 @@ class vf_planar_uv(bpy.types.Operator):
 			if f.select:
 				for l in f.loops:
 					pos = l.vert.co.copy()
-					pos -= centre
-					pos[0] /= size[0]
-					pos[1] /= size[1]
-					pos[2] /= size[2]
+					pos[0] = ((pos[0] - centre[0]) / size[0]) + align
+					pos[1] = ((pos[1] - centre[1]) / size[1]) + align
+					pos[2] = ((pos[2] - centre[2]) / size[2]) + align
 					if axis == "X":
 						l[uv_layer].uv = (pos[1], pos[2])
 					elif axis == "Y":
@@ -76,6 +76,14 @@ class vf_planar_uv(bpy.types.Operator):
 # Project settings and UI rendering classes
 
 class vfPlanarUvSettings(bpy.types.PropertyGroup):
+	projection_align: bpy.props.EnumProperty(
+		name='Alignment',
+		description='UV map alignment',
+		items=[
+			('0.0', 'Zero', 'Align mapped geometry centre to UV 0.0, 0.0'),
+			('0.5', 'Image', 'Align mapped geometry centre to UV 0.5, 0.5')
+			],
+		default='0.5')
 	projection_axis: bpy.props.EnumProperty(
 		name='Axis',
 		description='Planar projection axis',
@@ -123,6 +131,7 @@ class VFTOOLS_PT_planar_uv(bpy.types.Panel):
 			layout = self.layout
 			layout.use_property_split = True
 			layout.use_property_decorate = False # No animation
+			layout.prop(context.scene.vf_planar_uv_settings, 'projection_align', expand=True)
 			layout.prop(context.scene.vf_planar_uv_settings, 'projection_axis', expand=True)
 
 			col=layout.column()
