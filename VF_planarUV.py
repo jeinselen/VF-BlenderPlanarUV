@@ -1,7 +1,7 @@
 bl_info = {
 	"name": "VF Planar UV",
 	"author": "John Einselen - Vectorform LLC",
-	"version": (0, 2),
+	"version": (0, 2, 1),
 	"blender": (2, 80, 0),
 	"location": "Scene > VF Tools > Planar UV",
 	"description": "Numerical planar projection of 3D meshes into UV space",
@@ -112,7 +112,8 @@ class VFTOOLS_PT_planar_uv(bpy.types.Panel):
 	bl_space_type = "VIEW_3D"
 	bl_region_type = "UI"
 	bl_category = 'VF Tools'
-	bl_order = 0
+	bl_order = 10
+	bl_options = {'DEFAULT_CLOSED'}
 	bl_label = "Planar UV"
 	bl_idname = "VFTOOLS_PT_planar_uv"
 
