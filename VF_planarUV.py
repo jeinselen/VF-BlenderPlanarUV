@@ -1,7 +1,7 @@
 bl_info = {
 	"name": "VF Planar UV",
 	"author": "John Einselen - Vectorform LLC",
-	"version": (0, 2, 1),
+	"version": (0, 3, 0),
 	"blender": (2, 80, 0),
 	"location": "Scene > VF Tools > Planar UV",
 	"description": "Numerical planar projection of 3D meshes into UV space",
@@ -32,8 +32,10 @@ class vf_planar_uv(bpy.types.Operator):
 			return {'CANCELLED'}
 
 		# Set up local variables
-		align = float(bpy.context.scene.vf_planar_uv_settings.projection_align)
 		axis = bpy.context.scene.vf_planar_uv_settings.projection_axis
+		rotation = bpy.context.scene.vf_planar_uv_settings.projection_rotation
+		flip = float(bpy.context.scene.vf_planar_uv_settings.projection_flip)
+		align = float(bpy.context.scene.vf_planar_uv_settings.projection_align)
 		centre = bpy.context.scene.vf_planar_uv_settings.projection_centre
 		size = bpy.context.scene.vf_planar_uv_settings.projection_size
 
@@ -49,19 +51,41 @@ class vf_planar_uv(bpy.types.Operator):
 		uv_layer = bm.loops.layers.uv.verify()
 
 		# Loop through faces
+		U = 0.0
+		V = 0.0
 		for f in bm.faces:
 			if f.select:
 				for l in f.loops:
+					# Process input coordinates
 					pos = l.vert.co.copy()
-					pos[0] = ((pos[0] - centre[0]) / size[0]) + align
-					pos[1] = ((pos[1] - centre[1]) / size[1]) + align
-					pos[2] = ((pos[2] - centre[2]) / size[2]) + align
+					pos[0] = (pos[0] - centre[0]) / size[0]
+					pos[1] = (pos[1] - centre[1]) / size[1]
+					pos[2] = (pos[2] - centre[2]) / size[2]
+
+					# Projection Axis
 					if axis == "X":
-						l[uv_layer].uv = (pos[1], pos[2])
+						U = pos[1]
+						V = pos[2]
 					elif axis == "Y":
-						l[uv_layer].uv = (pos[0], pos[2])
+						U = pos[0]
+						V = pos[2]
 					else:
-						l[uv_layer].uv = (pos[0], pos[1])
+						U = pos[0]
+						V = pos[1]
+
+					# Projection Rotation
+					if "YX" in rotation:
+						U, V = V, U
+						U *= -1.0
+					if "-" in rotation:
+						U *= -1.0
+						V *= -1.0
+
+					# Projection Flip
+					U *= flip
+
+					# Set UV map values with image centre or zero point alignment
+					l[uv_layer].uv = (U + align, V + align)
 
 		# Update mesh
 		bmesh.update_edit_mesh(obj.data)
@@ -76,14 +100,6 @@ class vf_planar_uv(bpy.types.Operator):
 # Project settings and UI rendering classes
 
 class vfPlanarUvSettings(bpy.types.PropertyGroup):
-	projection_align: bpy.props.EnumProperty(
-		name='Alignment',
-		description='UV map alignment',
-		items=[
-			('0.0', 'Zero', 'Align mapped geometry centre to UV 0.0, 0.0'),
-			('0.5', 'Image', 'Align mapped geometry centre to UV 0.5, 0.5')
-			],
-		default='0.5')
 	projection_axis: bpy.props.EnumProperty(
 		name='Axis',
 		description='Planar projection axis',
@@ -93,6 +109,32 @@ class vfPlanarUvSettings(bpy.types.PropertyGroup):
 			('Z', 'Z', 'Z axis projection')
 			],
 		default='X')
+	projection_rotation: bpy.props.EnumProperty(
+		name='Rotation',
+		description='Planar projection axis',
+		items=[
+			('+XY', '0°', 'XY orientation projection'),
+			('+YX', '90', 'YX orientation projection'),
+			('-XY', '180', '-XY orientation projection'),
+			('-YX', '270', '-YX orientation projection')
+			],
+		default='+XY')
+	projection_flip: bpy.props.EnumProperty(
+		name='Flip',
+		description='Planar projection axis',
+		items=[
+			('1.0', 'Front', 'Projection from positive direction'),
+			('-1.0', 'Back', 'Projection from negative direction')
+			],
+		default='1.0')
+	projection_align: bpy.props.EnumProperty(
+		name='Alignment',
+		description='UV map alignment',
+		items=[
+			('0.5', 'Image', 'Align mapped geometry centre to UV 0.5, 0.5'),
+			('0.0', 'Zero', 'Align mapped geometry centre to UV 0.0, 0.0')
+			],
+		default='0.5')
 	projection_centre: bpy.props.FloatVectorProperty(
 		name="Centre",
 		description="Centre of the planar projection mapping area",
@@ -132,8 +174,10 @@ class VFTOOLS_PT_planar_uv(bpy.types.Panel):
 			layout = self.layout
 			layout.use_property_split = True
 			layout.use_property_decorate = False # No animation
-			layout.prop(context.scene.vf_planar_uv_settings, 'projection_align', expand=True)
 			layout.prop(context.scene.vf_planar_uv_settings, 'projection_axis', expand=True)
+			layout.prop(context.scene.vf_planar_uv_settings, 'projection_rotation', expand=True)
+			layout.prop(context.scene.vf_planar_uv_settings, 'projection_flip', expand=True)
+			layout.prop(context.scene.vf_planar_uv_settings, 'projection_align', expand=True)
 
 			col=layout.column()
 			col.prop(context.scene.vf_planar_uv_settings, 'projection_centre')
