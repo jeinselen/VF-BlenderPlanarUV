@@ -1,7 +1,7 @@
 bl_info = {
 	"name": "VF Planar UV",
 	"author": "John Einselen - Vectorform LLC",
-	"version": (0, 3, 0),
+	"version": (0, 4, 0),
 	"blender": (2, 80, 0),
 	"location": "Scene > VF Tools > Planar UV",
 	"description": "Numerical planar projection of 3D meshes into UV space",
@@ -14,6 +14,7 @@ bl_info = {
 # https://blenderartists.org/t/set-face-uv-coordinates-while-in-edit-mode/1317947
 # https://blender.stackexchange.com/questions/9399/add-uv-layer-to-mesh-add-uv-coords-with-python
 # https://blender.stackexchange.com/questions/30421/create-a-radio-button-via-python
+# https://gifguide2code.com/2017/05/14/python-how-to-loop-through-every-vertex-in-a-mesh/
 
 import bpy
 import bmesh
@@ -96,6 +97,64 @@ class vf_planar_uv(bpy.types.Operator):
 		# Done
 		return {'FINISHED'}
 
+class vf_load_selection(bpy.types.Operator):
+	bl_idname = "vfloadselection.set"
+	bl_label = "Load Selection"
+	bl_description = "Set the Centre and Size variables to the bounding box properties of the selected geometry"
+	bl_options = {'REGISTER', 'UNDO'}
+
+	def execute(self, context):
+		if not bpy.context.view_layer.objects.active.data.vertices:
+			return {'CANCELLED'}
+
+		# Save current mode
+		mode = bpy.context.active_object.mode
+		# Switch to edit mode
+		bpy.ops.object.mode_set(mode='EDIT')
+
+		# Loop through selected vertices
+#		mesh = bpy.context.active_object.data
+		# Undoing after using the active object data method causes a segmentation fault in Blender 3.3.x
+		obj = bpy.context.active_object
+		mesh = bmesh.from_edit_mesh(obj.data)
+		minX = False
+		minY = False
+		minZ = False
+		maxX = False
+		maxY = False
+		maxZ = False
+#		for vert in mesh.vertices:
+		for vert in mesh.verts:
+			if vert.select:
+				minX = min(minX, vert.co.x) if minX else vert.co.x
+				minY = min(minY, vert.co.y) if minY else vert.co.y
+				minZ = min(minZ, vert.co.z) if minZ else vert.co.z
+				maxX = max(maxX, vert.co.x) if maxX else vert.co.x
+				maxY = max(maxY, vert.co.y) if maxY else vert.co.y
+				maxZ = max(maxZ, vert.co.z) if maxZ else vert.co.z
+
+		# Calculate bounding box and centre point
+		boundX = maxX-minX
+		boundY = maxY-minY
+		boundZ = maxZ-minZ
+		centrX = minX+(boundX*0.5)
+		centrY = minY+(boundY*0.5)
+		centrZ = minZ+(boundZ*0.5)
+
+		# Set local variables
+		bpy.context.scene.vf_planar_uv_settings.projection_centre[0] = centrX
+		bpy.context.scene.vf_planar_uv_settings.projection_centre[1] = centrY
+		bpy.context.scene.vf_planar_uv_settings.projection_centre[2] = centrZ
+		bpy.context.scene.vf_planar_uv_settings.projection_size[0] = boundX
+		bpy.context.scene.vf_planar_uv_settings.projection_size[1] = boundY
+		bpy.context.scene.vf_planar_uv_settings.projection_size[2] = boundZ
+
+		# Reset object mode to original
+		bpy.ops.object.mode_set(mode=mode)
+
+		# Done
+		return {'FINISHED'}
+
 ###########################################################################
 # Project settings and UI rendering classes
 
@@ -109,6 +168,20 @@ class vfPlanarUvSettings(bpy.types.PropertyGroup):
 			('Z', 'Z', 'Z axis projection')
 			],
 		default='X')
+	projection_centre: bpy.props.FloatVectorProperty(
+		name="Centre",
+		description="Centre of the planar projection mapping area",
+		subtype="TRANSLATION",
+		default=[0.0, 0.0, 0.0],
+		step=1.25,
+		precision=3)
+	projection_size: bpy.props.FloatVectorProperty(
+		name="Size",
+		description="Size of the planar projection mapping area",
+		subtype="TRANSLATION",
+		default=[1.0, 1.0, 1.0],
+		step=1.25,
+		precision=3)
 	projection_rotation: bpy.props.EnumProperty(
 		name='Rotation',
 		description='Planar projection axis',
@@ -135,20 +208,6 @@ class vfPlanarUvSettings(bpy.types.PropertyGroup):
 			('0.0', 'Zero', 'Align mapped geometry centre to UV 0.0, 0.0')
 			],
 		default='0.5')
-	projection_centre: bpy.props.FloatVectorProperty(
-		name="Centre",
-		description="Centre of the planar projection mapping area",
-		subtype="TRANSLATION",
-		default=[0.0, 0.0, 0.0],
-		step=1.25,
-		precision=3)
-	projection_size: bpy.props.FloatVectorProperty(
-		name="Size",
-		description="Size of the planar projection mapping area",
-		subtype="TRANSLATION",
-		default=[1.0, 1.0, 1.0],
-		step=1.25,
-		precision=3)
 
 class VFTOOLS_PT_planar_uv(bpy.types.Panel):
 	bl_space_type = "VIEW_3D"
@@ -175,15 +234,17 @@ class VFTOOLS_PT_planar_uv(bpy.types.Panel):
 			layout.use_property_split = True
 			layout.use_property_decorate = False # No animation
 			layout.prop(context.scene.vf_planar_uv_settings, 'projection_axis', expand=True)
-			layout.prop(context.scene.vf_planar_uv_settings, 'projection_rotation', expand=True)
-			layout.prop(context.scene.vf_planar_uv_settings, 'projection_flip', expand=True)
-			layout.prop(context.scene.vf_planar_uv_settings, 'projection_align', expand=True)
 
 			col=layout.column()
 			col.prop(context.scene.vf_planar_uv_settings, 'projection_centre')
 			col.prop(context.scene.vf_planar_uv_settings, 'projection_size')
 
+			layout.prop(context.scene.vf_planar_uv_settings, 'projection_rotation', expand=True)
+			layout.prop(context.scene.vf_planar_uv_settings, 'projection_flip', expand=True)
+			layout.prop(context.scene.vf_planar_uv_settings, 'projection_align', expand=True)
+
 			if bpy.context.view_layer.objects.active and bpy.context.view_layer.objects.active.type == "MESH":
+				col.operator(vf_load_selection.bl_idname)
 				layout.operator(vf_planar_uv.bl_idname)
 			else:
 				box = layout.box()
@@ -191,7 +252,7 @@ class VFTOOLS_PT_planar_uv(bpy.types.Panel):
 		except Exception as exc:
 			print(str(exc) + " | Error in VF Planar UV panel")
 
-classes = (vf_planar_uv, vfPlanarUvSettings, VFTOOLS_PT_planar_uv)
+classes = (vf_planar_uv, vf_load_selection, vfPlanarUvSettings, VFTOOLS_PT_planar_uv)
 
 ###########################################################################
 # Addon registration functions
