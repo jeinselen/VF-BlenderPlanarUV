@@ -1,7 +1,7 @@
 bl_info = {
 	"name": "VF Planar UV",
 	"author": "John Einselen - Vectorform LLC",
-	"version": (0, 4, 0),
+	"version": (0, 4, 1),
 	"blender": (2, 80, 0),
 	"location": "Scene > VF Tools > Planar UV",
 	"description": "Numerical planar projection of 3D meshes into UV space",
@@ -39,6 +39,11 @@ class vf_planar_uv(bpy.types.Operator):
 		align = float(bpy.context.scene.vf_planar_uv_settings.projection_align)
 		centre = bpy.context.scene.vf_planar_uv_settings.projection_centre
 		size = bpy.context.scene.vf_planar_uv_settings.projection_size
+
+		# Prevent divide by zero errors
+		size[0] = size[0] if size[0] > 0.0 else 1.0
+		size[1] = size[1] if size[1] > 0.0 else 1.0
+		size[2] = size[2] if size[2] > 0.0 else 1.0
 
 		# Save current mode
 		mode = bpy.context.active_object.mode
@@ -140,6 +145,11 @@ class vf_load_selection(bpy.types.Operator):
 		centrX = minX+(boundX*0.5)
 		centrY = minY+(boundY*0.5)
 		centrZ = minZ+(boundZ*0.5)
+
+		# Prevent zero scale entries
+		boundX = boundX if boundX > 0.0 else 1.0
+		boundY = boundY if boundY > 0.0 else 1.0
+		boundZ = boundZ if boundZ > 0.0 else 1.0
 
 		# Set local variables
 		bpy.context.scene.vf_planar_uv_settings.projection_centre[0] = centrX
