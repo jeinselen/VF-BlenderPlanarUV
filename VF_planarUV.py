@@ -1,7 +1,7 @@
 bl_info = {
 	"name": "VF Planar UV",
 	"author": "John Einselen - Vectorform LLC",
-	"version": (0, 4, 1),
+	"version": (0, 4, 2),
 	"blender": (2, 80, 0),
 	"location": "Scene > VF Tools > Planar UV",
 	"description": "Numerical planar projection of 3D meshes into UV space",
@@ -105,7 +105,7 @@ class vf_planar_uv(bpy.types.Operator):
 class vf_load_selection(bpy.types.Operator):
 	bl_idname = "vfloadselection.set"
 	bl_label = "Load Selection"
-	bl_description = "Set the Centre and Size variables to the bounding box properties of the selected geometry"
+	bl_description = "Set the Centre and Size variables to the bounding box of the selected geometry"
 	bl_options = {'REGISTER', 'UNDO'}
 
 	def execute(self, context):
@@ -192,6 +192,10 @@ class vfPlanarUvSettings(bpy.types.PropertyGroup):
 		default=[1.0, 1.0, 1.0],
 		step=1.25,
 		precision=3)
+	projection_advanced: bpy.props.BoolProperty(
+		name="Advanced",
+		description="Show advanced planar  project settings",
+		default=False)
 	projection_rotation: bpy.props.EnumProperty(
 		name='Rotation',
 		description='Planar projection axis',
@@ -245,20 +249,29 @@ class VFTOOLS_PT_planar_uv(bpy.types.Panel):
 			layout.use_property_decorate = False # No animation
 			layout.prop(context.scene.vf_planar_uv_settings, 'projection_axis', expand=True)
 
-			col=layout.column()
+			col = layout.column()
 			col.prop(context.scene.vf_planar_uv_settings, 'projection_centre')
 			col.prop(context.scene.vf_planar_uv_settings, 'projection_size')
 
-			layout.prop(context.scene.vf_planar_uv_settings, 'projection_rotation', expand=True)
-			layout.prop(context.scene.vf_planar_uv_settings, 'projection_flip', expand=True)
-			layout.prop(context.scene.vf_planar_uv_settings, 'projection_align', expand=True)
+			row = layout.row(align=True)
+			row.use_property_split = False
+			if context.scene.vf_planar_uv_settings.projection_advanced:
+				row.prop(context.scene.vf_planar_uv_settings, 'projection_advanced', emboss=False, toggle=1, icon="DOWNARROW_HLT")
+
+				if bpy.context.view_layer.objects.active and bpy.context.view_layer.objects.active.type == "MESH":
+					layout.operator(vf_load_selection.bl_idname, icon="SHADING_BBOX")
+				layout.prop(context.scene.vf_planar_uv_settings, 'projection_rotation', expand=True)
+				layout.prop(context.scene.vf_planar_uv_settings, 'projection_flip', expand=True)
+				layout.prop(context.scene.vf_planar_uv_settings, 'projection_align', expand=True)
+			else:
+				row.prop(context.scene.vf_planar_uv_settings, 'projection_advanced', emboss=False, toggle=1, icon="RIGHTARROW")
 
 			if bpy.context.view_layer.objects.active and bpy.context.view_layer.objects.active.type == "MESH":
-				col.operator(vf_load_selection.bl_idname)
-				layout.operator(vf_planar_uv.bl_idname)
+#				col.operator(vf_load_selection.bl_idname)
+				layout.operator(vf_planar_uv.bl_idname, icon="GROUP_UVS")
 			else:
 				box = layout.box()
-				box.label(text="Active object must be a mesh with selected polygons")
+				box.label(text="Select polygons")
 		except Exception as exc:
 			print(str(exc) + " | Error in VF Planar UV panel")
 
