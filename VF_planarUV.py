@@ -1,7 +1,7 @@
 bl_info = {
 	"name": "VF Planar UV",
 	"author": "John Einselen - Vectorform LLC",
-	"version": (0, 4, 2),
+	"version": (0, 4, 3),
 	"blender": (2, 80, 0),
 	"location": "Scene > VF Tools > Planar UV",
 	"description": "Numerical planar projection of 3D meshes into UV space",
@@ -104,7 +104,7 @@ class vf_planar_uv(bpy.types.Operator):
 
 class vf_load_selection(bpy.types.Operator):
 	bl_idname = "vfloadselection.set"
-	bl_label = "Load Selection"
+	bl_label = "Load Selection Settings"
 	bl_description = "Set the Centre and Size variables to the bounding box of the selected geometry"
 	bl_options = {'REGISTER', 'UNDO'}
 
@@ -118,8 +118,6 @@ class vf_load_selection(bpy.types.Operator):
 		bpy.ops.object.mode_set(mode='EDIT')
 
 		# Loop through selected vertices
-#		mesh = bpy.context.active_object.data
-		# Undoing after using the active object data method causes a segmentation fault in Blender 3.3.x
 		obj = bpy.context.active_object
 		mesh = bmesh.from_edit_mesh(obj.data)
 		minX = False
@@ -128,7 +126,6 @@ class vf_load_selection(bpy.types.Operator):
 		maxX = False
 		maxY = False
 		maxZ = False
-#		for vert in mesh.vertices:
 		for vert in mesh.verts:
 			if vert.select:
 				minX = min(minX, vert.co.x) if minX else vert.co.x
@@ -192,10 +189,6 @@ class vfPlanarUvSettings(bpy.types.PropertyGroup):
 		default=[1.0, 1.0, 1.0],
 		step=1.25,
 		precision=3)
-	projection_advanced: bpy.props.BoolProperty(
-		name="Advanced",
-		description="Show advanced planar  project settings",
-		default=False)
 	projection_rotation: bpy.props.EnumProperty(
 		name='Rotation',
 		description='Planar projection axis',
@@ -229,12 +222,14 @@ class VFTOOLS_PT_planar_uv(bpy.types.Panel):
 	bl_category = 'VF Tools'
 	bl_order = 10
 	bl_options = {'DEFAULT_CLOSED'}
-	bl_label = "Planar UV"
-	bl_idname = "VFTOOLS_PT_planar_uv"
 
 	@classmethod
 	def poll(cls, context):
 		return True
+
+class VFTOOLS_PT_planar_uv_main(VFTOOLS_PT_planar_uv, bpy.types.Panel):
+	bl_idname = "VFTOOLS_PT_planar_uv"
+	bl_label = "Planar UV"
 
 	def draw_header(self, context):
 		try:
@@ -253,29 +248,45 @@ class VFTOOLS_PT_planar_uv(bpy.types.Panel):
 			col.prop(context.scene.vf_planar_uv_settings, 'projection_centre')
 			col.prop(context.scene.vf_planar_uv_settings, 'projection_size')
 
-			row = layout.row(align=True)
-			row.use_property_split = False
-			if context.scene.vf_planar_uv_settings.projection_advanced:
-				row.prop(context.scene.vf_planar_uv_settings, 'projection_advanced', emboss=False, toggle=1, icon="DOWNARROW_HLT")
-
-				if bpy.context.view_layer.objects.active and bpy.context.view_layer.objects.active.type == "MESH":
-					layout.operator(vf_load_selection.bl_idname, icon="SHADING_BBOX")
-				layout.prop(context.scene.vf_planar_uv_settings, 'projection_rotation', expand=True)
-				layout.prop(context.scene.vf_planar_uv_settings, 'projection_flip', expand=True)
-				layout.prop(context.scene.vf_planar_uv_settings, 'projection_align', expand=True)
-			else:
-				row.prop(context.scene.vf_planar_uv_settings, 'projection_advanced', emboss=False, toggle=1, icon="RIGHTARROW")
-
-			if bpy.context.view_layer.objects.active and bpy.context.view_layer.objects.active.type == "MESH":
-#				col.operator(vf_load_selection.bl_idname)
-				layout.operator(vf_planar_uv.bl_idname, icon="GROUP_UVS")
-			else:
-				box = layout.box()
-				box.label(text="Select polygons")
+			button = layout.row()
+			if not (bpy.context.view_layer.objects.active and bpy.context.view_layer.objects.active.type == "MESH"):
+				button.active = False
+				button.enabled = False
+			button.operator(vf_planar_uv.bl_idname, icon="GROUP_UVS")
 		except Exception as exc:
 			print(str(exc) + " | Error in VF Planar UV panel")
 
-classes = (vf_planar_uv, vf_load_selection, vfPlanarUvSettings, VFTOOLS_PT_planar_uv)
+class VFTOOLS_PT_planar_uv_advanced(VFTOOLS_PT_planar_uv, bpy.types.Panel):
+	bl_idname = "VFTOOLS_PT_planar_uv_advanced"
+	bl_parent_id = "VFTOOLS_PT_planar_uv"
+	bl_label = "Advanced"
+	bl_options = {'DEFAULT_CLOSED'}
+
+	def draw_header(self, context):
+		try:
+			layout = self.layout
+		except Exception as exc:
+			print(str(exc) + " | Error in VF Planar UV panel header")
+
+	def draw(self, context):
+		try:
+			layout = self.layout
+			layout.use_property_split = True
+			layout.use_property_decorate = False # No animation
+
+			button = layout.row()
+			if not (bpy.context.view_layer.objects.active and bpy.context.view_layer.objects.active.type == "MESH"):
+				button.active = False
+				button.enabled = False
+			button.operator(vf_load_selection.bl_idname, icon="SHADING_BBOX")
+
+			layout.prop(context.scene.vf_planar_uv_settings, 'projection_rotation', expand=True)
+			layout.prop(context.scene.vf_planar_uv_settings, 'projection_flip', expand=True)
+			layout.prop(context.scene.vf_planar_uv_settings, 'projection_align', expand=True)
+		except Exception as exc:
+			print(str(exc) + " | Error in VF Planar UV Advanced panel")
+
+classes = (vf_planar_uv, vf_load_selection, vfPlanarUvSettings, VFTOOLS_PT_planar_uv_main, VFTOOLS_PT_planar_uv_advanced)
 
 ###########################################################################
 # Addon registration functions
