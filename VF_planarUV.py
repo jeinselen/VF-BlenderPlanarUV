@@ -2,12 +2,12 @@ bl_info = {
 	"name": "VF Planar UV",
 	"author": "John Einselen - Vectorform LLC",
 	"version": (0, 4, 3),
-	"blender": (2, 80, 0),
+	"blender": (2, 83, 0),
 	"location": "Scene > VF Tools > Planar UV",
 	"description": "Numerical planar projection of 3D meshes into UV space",
 	"warning": "inexperienced developer, use at your own risk",
-	"wiki_url": "",
-	"tracker_url": "",
+	"doc_url": "https://github.com/jeinselenVF/VF-BlenderPlanarUV",
+	"tracker_url": "https://github.com/jeinselenVF/VF-BlenderPlanarUV/issues",
 	"category": "3D View"}
 
 # Based in part on basic code found here:
