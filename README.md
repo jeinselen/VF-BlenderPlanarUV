@@ -20,6 +20,7 @@ Numerical planar projection of 3D meshes into UV space, allowing for accurate an
 - `Axis` sets the direction of the planar projection: `X`, `Y`, or `Z`
 - `Centre` sets the centre point of the projection space, allowing for any specific location to be mapped
 - `Size` defines the scale of the projection, allowing for known numerical translation from object space into UV space
+- `Space` sets local or world space for both loading selection settings and generating the UV map
 
 ### Advanced Settings
 

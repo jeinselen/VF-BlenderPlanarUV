@@ -1,7 +1,7 @@
 bl_info = {
 	"name": "VF Planar UV",
 	"author": "John Einselen - Vectorform LLC",
-	"version": (0, 4, 3),
+	"version": (0, 5, 0),
 	"blender": (2, 83, 0),
 	"location": "Scene > VF Tools > Planar UV",
 	"description": "Numerical planar projection of 3D meshes into UV space",
@@ -18,6 +18,7 @@ bl_info = {
 
 import bpy
 import bmesh
+from mathutils import Vector
 
 ###########################################################################
 # Main class
@@ -29,33 +30,35 @@ class vf_planar_uv(bpy.types.Operator):
 	bl_options = {'REGISTER', 'UNDO'}
 
 	def execute(self, context):
-		if not bpy.context.view_layer.objects.active.data.vertices:
+		if not context.view_layer.objects.active.data.vertices:
 			return {'CANCELLED'}
-
+		
 		# Set up local variables
-		axis = bpy.context.scene.vf_planar_uv_settings.projection_axis
-		rotation = bpy.context.scene.vf_planar_uv_settings.projection_rotation
-		flip = float(bpy.context.scene.vf_planar_uv_settings.projection_flip)
-		align = float(bpy.context.scene.vf_planar_uv_settings.projection_align)
-		centre = bpy.context.scene.vf_planar_uv_settings.projection_centre
-		size = bpy.context.scene.vf_planar_uv_settings.projection_size
-
+		axis = context.scene.vf_planar_uv_settings.projection_axis
+		world = True if context.scene.vf_planar_uv_settings.projection_space == "W" else False
+		rotation = context.scene.vf_planar_uv_settings.projection_rotation
+		flip = float(context.scene.vf_planar_uv_settings.projection_flip)
+		align = float(context.scene.vf_planar_uv_settings.projection_align)
+		centre = context.scene.vf_planar_uv_settings.projection_centre
+		size = context.scene.vf_planar_uv_settings.projection_size
+		
 		# Prevent divide by zero errors
 		size[0] = size[0] if size[0] > 0.0 else 1.0
 		size[1] = size[1] if size[1] > 0.0 else 1.0
 		size[2] = size[2] if size[2] > 0.0 else 1.0
-
+		
 		# Save current mode
-		mode = bpy.context.active_object.mode
+		mode = context.active_object.mode
 		# Switch to edit mode
 		bpy.ops.object.mode_set(mode='EDIT')
-
+		
 		# Get object
-		obj = bpy.context.active_object
+		obj = context.active_object
+		mat = obj.matrix_world
 		bm = bmesh.from_edit_mesh(obj.data)
 		# Get UV map
 		uv_layer = bm.loops.layers.uv.verify()
-
+		
 		# Loop through faces
 		U = 0.0
 		V = 0.0
@@ -63,11 +66,17 @@ class vf_planar_uv(bpy.types.Operator):
 			if f.select:
 				for l in f.loops:
 					# Process input coordinates
+					# Use copy() to prevent changes to the source vertex coordinates
 					pos = l.vert.co.copy()
+					
+					# Convert to world space if enabled
+					if world:
+						pos = mat @ pos
+					
 					pos[0] = (pos[0] - centre[0]) / size[0]
 					pos[1] = (pos[1] - centre[1]) / size[1]
 					pos[2] = (pos[2] - centre[2]) / size[2]
-
+					
 					# Projection Axis
 					if axis == "X":
 						U = pos[1]
@@ -75,10 +84,10 @@ class vf_planar_uv(bpy.types.Operator):
 					elif axis == "Y":
 						U = pos[0]
 						V = pos[2]
-					else:
+					else: # axis == "Z"
 						U = pos[0]
 						V = pos[1]
-
+					
 					# Projection Rotation
 					if "YX" in rotation:
 						U, V = V, U
@@ -86,19 +95,19 @@ class vf_planar_uv(bpy.types.Operator):
 					if "-" in rotation:
 						U *= -1.0
 						V *= -1.0
-
+					
 					# Projection Flip
 					U *= flip
-
+					
 					# Set UV map values with image centre or zero point alignment
 					l[uv_layer].uv = (U + align, V + align)
-
+		
 		# Update mesh
 		bmesh.update_edit_mesh(obj.data)
-
+		
 		# Reset object mode to original
 		bpy.ops.object.mode_set(mode=mode)
-
+		
 		# Done
 		return {'FINISHED'}
 
@@ -107,58 +116,57 @@ class vf_load_selection(bpy.types.Operator):
 	bl_label = "Load Selection Settings"
 	bl_description = "Set the Centre and Size variables to the bounding box of the selected geometry"
 	bl_options = {'REGISTER', 'UNDO'}
-
+	
 	def execute(self, context):
-		if not bpy.context.view_layer.objects.active.data.vertices:
+		if not context.view_layer.objects.active.data.vertices:
 			return {'CANCELLED'}
-
+		
 		# Save current mode
-		mode = bpy.context.active_object.mode
+		mode = context.active_object.mode
 		# Switch to edit mode
 		bpy.ops.object.mode_set(mode='EDIT')
-
-		# Loop through selected vertices
-		obj = bpy.context.active_object
+		
+		# Get object data
+		obj = context.active_object
+		mat = obj.matrix_world
 		mesh = bmesh.from_edit_mesh(obj.data)
-		minX = False
-		minY = False
-		minZ = False
-		maxX = False
-		maxY = False
-		maxZ = False
+		
+		# Loop through selected vertices and find the minimum/maximum positions
+		min_co = Vector((float("inf"), float("inf"), float("inf")))
+		max_co = Vector((float("-inf"), float("-inf"), float("-inf")))
 		for vert in mesh.verts:
 			if vert.select:
-				minX = min(minX, vert.co.x) if minX else vert.co.x
-				minY = min(minY, vert.co.y) if minY else vert.co.y
-				minZ = min(minZ, vert.co.z) if minZ else vert.co.z
-				maxX = max(maxX, vert.co.x) if maxX else vert.co.x
-				maxY = max(maxY, vert.co.y) if maxY else vert.co.y
-				maxZ = max(maxZ, vert.co.z) if maxZ else vert.co.z
-
+				min_co.x = min(min_co.x, vert.co.x)
+				min_co.y = min(min_co.y, vert.co.y)
+				min_co.z = min(min_co.z, vert.co.z)
+				max_co.x = max(max_co.x, vert.co.x)
+				max_co.y = max(max_co.y, vert.co.y)
+				max_co.z = max(max_co.z, vert.co.z)
+		
+		# Convert to world space if enabled
+		if context.scene.vf_planar_uv_settings.projection_space == "W":
+			min_co = mat @ min_co
+			max_co = mat @ max_co
+		
 		# Calculate bounding box and centre point
-		boundX = maxX-minX
-		boundY = maxY-minY
-		boundZ = maxZ-minZ
-		centrX = minX+(boundX*0.5)
-		centrY = minY+(boundY*0.5)
-		centrZ = minZ+(boundZ*0.5)
-
+		centr = (min_co + max_co) * 0.5
+		max_co = max_co - min_co
+		
 		# Prevent zero scale entries
-		boundX = boundX if boundX > 0.0 else 1.0
-		boundY = boundY if boundY > 0.0 else 1.0
-		boundZ = boundZ if boundZ > 0.0 else 1.0
-
+		if max_co.x == 0:
+			max_co.x = 1.0
+		if max_co.y == 0:
+			max_co.y = 1.0
+		if max_co.z == 0:
+			max_co.z = 1.0
+		
 		# Set local variables
-		bpy.context.scene.vf_planar_uv_settings.projection_centre[0] = centrX
-		bpy.context.scene.vf_planar_uv_settings.projection_centre[1] = centrY
-		bpy.context.scene.vf_planar_uv_settings.projection_centre[2] = centrZ
-		bpy.context.scene.vf_planar_uv_settings.projection_size[0] = boundX
-		bpy.context.scene.vf_planar_uv_settings.projection_size[1] = boundY
-		bpy.context.scene.vf_planar_uv_settings.projection_size[2] = boundZ
-
+		context.scene.vf_planar_uv_settings.projection_centre = centr
+		context.scene.vf_planar_uv_settings.projection_size = max_co
+		
 		# Reset object mode to original
 		bpy.ops.object.mode_set(mode=mode)
-
+		
 		# Done
 		return {'FINISHED'}
 
@@ -189,6 +197,14 @@ class vfPlanarUvSettings(bpy.types.PropertyGroup):
 		default=[1.0, 1.0, 1.0],
 		step=1.25,
 		precision=3)
+	projection_space: bpy.props.EnumProperty(
+		name='Space',
+		description='Planar projection coordinate space',
+		items=[
+			('L', 'Local', 'Projection using local space'),
+			('W', 'World', 'Projection using world space')
+			],
+		default='L')
 	projection_rotation: bpy.props.EnumProperty(
 		name='Rotation',
 		description='Planar projection axis',
@@ -222,7 +238,7 @@ class VFTOOLS_PT_planar_uv(bpy.types.Panel):
 	bl_category = 'VF Tools'
 	bl_order = 10
 	bl_options = {'DEFAULT_CLOSED'}
-
+	
 	@classmethod
 	def poll(cls, context):
 		return True
@@ -230,26 +246,29 @@ class VFTOOLS_PT_planar_uv(bpy.types.Panel):
 class VFTOOLS_PT_planar_uv_main(VFTOOLS_PT_planar_uv, bpy.types.Panel):
 	bl_idname = "VFTOOLS_PT_planar_uv"
 	bl_label = "Planar UV"
-
+	
 	def draw_header(self, context):
 		try:
 			layout = self.layout
 		except Exception as exc:
 			print(str(exc) + " | Error in VF Planar UV panel header")
-
+	
 	def draw(self, context):
 		try:
 			layout = self.layout
 			layout.use_property_split = True
 			layout.use_property_decorate = False # No animation
 			layout.prop(context.scene.vf_planar_uv_settings, 'projection_axis', expand=True)
-
+			
 			col = layout.column()
 			col.prop(context.scene.vf_planar_uv_settings, 'projection_centre')
+			col = layout.column()
 			col.prop(context.scene.vf_planar_uv_settings, 'projection_size')
-
+			
+			layout.prop(context.scene.vf_planar_uv_settings, 'projection_space', expand=True)
+			
 			button = layout.row()
-			if not (bpy.context.view_layer.objects.active and bpy.context.view_layer.objects.active.type == "MESH"):
+			if not (context.view_layer.objects.active and context.view_layer.objects.active.type == "MESH"):
 				button.active = False
 				button.enabled = False
 			button.operator(vf_planar_uv.bl_idname, icon="GROUP_UVS")
@@ -261,25 +280,25 @@ class VFTOOLS_PT_planar_uv_advanced(VFTOOLS_PT_planar_uv, bpy.types.Panel):
 	bl_parent_id = "VFTOOLS_PT_planar_uv"
 	bl_label = "Advanced"
 	bl_options = {'DEFAULT_CLOSED'}
-
+	
 	def draw_header(self, context):
 		try:
 			layout = self.layout
 		except Exception as exc:
 			print(str(exc) + " | Error in VF Planar UV panel header")
-
+	
 	def draw(self, context):
 		try:
 			layout = self.layout
 			layout.use_property_split = True
 			layout.use_property_decorate = False # No animation
-
+			
 			button = layout.row()
-			if not (bpy.context.view_layer.objects.active and bpy.context.view_layer.objects.active.type == "MESH"):
+			if not (context.view_layer.objects.active and context.view_layer.objects.active.type == "MESH"):
 				button.active = False
 				button.enabled = False
 			button.operator(vf_load_selection.bl_idname, icon="SHADING_BBOX")
-
+			
 			layout.prop(context.scene.vf_planar_uv_settings, 'projection_rotation', expand=True)
 			layout.prop(context.scene.vf_planar_uv_settings, 'projection_flip', expand=True)
 			layout.prop(context.scene.vf_planar_uv_settings, 'projection_align', expand=True)
