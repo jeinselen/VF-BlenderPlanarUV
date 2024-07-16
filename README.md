@@ -1,5 +1,7 @@
 # VF Planar UV
 
+This add-on was designed for Blender version 2.8-4.1 (though not all previous versions may be fully supported). For Blender 4.2 and onwards, [please see the new Mesh Kit extension](https://github.com/jeinselen/Blender-MeshKit).
+
 Numerical planar projection of 3D meshes into UV space, allowing for accurate and replicable results instead of relying on Blender's "Project From View" (which is either non-repeatable by default or non-customisable in "orthographic" mode).
 
 ![screenshot of Blender 3D and UV editor interfaces showing the plugin mapping a standard monkey head with X axis planar projection](images/screenshot0.png)
